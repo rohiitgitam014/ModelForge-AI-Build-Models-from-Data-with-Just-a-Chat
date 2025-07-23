@@ -8,9 +8,10 @@ from streamlit_chat import message
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-st.set_page_config(page_title="ML Chatbot", layout="centered")
+# Page setup
+st.set_page_config(page_title="🤖 ML Chatbot", layout="centered")
 
-# Session states
+# Initialize session states
 if "step" not in st.session_state:
     st.session_state.step = 0
 if "dataset" not in st.session_state:
@@ -23,11 +24,10 @@ if "task" not in st.session_state:
     st.session_state.task = None
 if "show_results" not in st.session_state:
     st.session_state.show_results = False
-
-# Chat message history
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
+# Chat rendering
 def bot(message_text):
     st.session_state.chat.append({"role": "bot", "content": message_text})
     message(message_text, is_user=False, key=f"bot_{len(st.session_state.chat)}")
@@ -36,9 +36,10 @@ def user(message_text):
     st.session_state.chat.append({"role": "user", "content": message_text})
     message(message_text, is_user=True, key=f"user_{len(st.session_state.chat)}")
 
+# Title
 st.title("🤖 ML Chatbot")
 
-# Step 0: Upload Dataset
+# Step 0: Upload CSV
 if st.session_state.step == 0:
     bot("Hi! Please upload a CSV file so I can help you build a predictive model.")
     uploaded_file = st.file_uploader("Upload your dataset", type=["csv"], key="file_upload")
@@ -67,7 +68,7 @@ elif st.session_state.step == 1:
         st.session_state.step = 2
         st.rerun()
 
-# Step 2: Train the Model
+# Step 2: Train model
 elif st.session_state.step == 2:
     df = st.session_state.dataset
     target = st.session_state.target_column
@@ -75,10 +76,10 @@ elif st.session_state.step == 2:
     X = df.drop(columns=[target])
     y = df[target]
 
-    # Encode categorical variables
+    # Encode categorical
     X = pd.get_dummies(X)
 
-    # Determine problem type
+    # Task type check
     if y.nunique() <= 10 and y.dtype != 'float64':
         task = "classification"
         y = y.astype(str)
@@ -93,21 +94,20 @@ elif st.session_state.step == 2:
     user("Start training!")
     bot(f"Got it! This is a **{task}** problem. Training a Random Forest model...")
 
-    # Split and train
+    # Train
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
-    # Save for next step
+    # Save results
     st.session_state.X_test = X_test
     st.session_state.y_test = y_test
     st.session_state.y_pred = y_pred
-
     st.session_state.show_results = True
     st.session_state.step = 3
     st.rerun()
 
-# Step 3: Show Results
+# Step 3: Show results
 elif st.session_state.step == 3 and st.session_state.show_results:
     task = st.session_state.task
     model = st.session_state.model
@@ -127,7 +127,7 @@ elif st.session_state.step == 3 and st.session_state.show_results:
         r2 = r2_score(y_test, y_pred)
         bot(f"📉 RMSE: **{rmse:.2f}**, R² Score: **{r2:.2f}**")
 
-    # Feature importance plot
+    # Feature importance
     bot("📌 Top Feature Importances:")
     importance_df = pd.DataFrame({
         'Feature': X_test.columns,
@@ -138,7 +138,7 @@ elif st.session_state.step == 3 and st.session_state.show_results:
     sns.barplot(data=importance_df.head(10), x="Importance", y="Feature", ax=ax)
     st.pyplot(fig)
 
-    # Sample predictions
+    # Predictions
     bot("🔮 Here are some sample predictions:")
     result_df = pd.DataFrame({
         'Actual': y_test.values[:10],
@@ -152,7 +152,7 @@ elif st.session_state.step == 3 and st.session_state.show_results:
             del st.session_state[key]
         st.rerun()
 
-# Display chat history in sidebar
+# Sidebar Chat History (safe keys)
 st.sidebar.title("📝 Conversation")
-for chat in st.session_state.chat:
-    message(chat["content"], is_user=(chat["role"] == "user"), key=f"{chat['role']}_{st.session_state.chat.index(chat)}")
+for i, chat in enumerate(st.session_state.chat):
+    message(chat["content"], is_user=(chat["role"] == "user"), key=f"{chat['role']}_{i}")
