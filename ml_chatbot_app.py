@@ -30,18 +30,18 @@ if "chat" not in st.session_state:
 
 def bot(message_text):
     st.session_state.chat.append({"role": "bot", "content": message_text})
-    message(message_text, is_user=False)
+    message(message_text, is_user=False, key=f"bot_{len(st.session_state.chat)}")
 
 def user(message_text):
     st.session_state.chat.append({"role": "user", "content": message_text})
-    message(message_text, is_user=True)
+    message(message_text, is_user=True, key=f"user_{len(st.session_state.chat)}")
 
 st.title("🤖 ML Chatbot")
 
 # Step 0: Upload Dataset
 if st.session_state.step == 0:
     bot("Hi! Please upload a CSV file so I can help you build a predictive model.")
-    uploaded_file = st.file_uploader("Upload your dataset", type=["csv"])
+    uploaded_file = st.file_uploader("Upload your dataset", type=["csv"], key="file_upload")
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
         st.session_state.dataset = df
@@ -52,10 +52,14 @@ if st.session_state.step == 0:
 # Step 1: Select target column
 elif st.session_state.step == 1:
     bot("Here is a preview of your dataset:")
-    st.dataframe(st.session_state.dataset.head())
+    st.dataframe(st.session_state.dataset.head(), use_container_width=True)
 
     bot("Which column would you like me to predict?")
-    target_column = st.selectbox("Select Target Column", st.session_state.dataset.columns)
+    target_column = st.selectbox(
+        "🎯 Select Target Column", 
+        st.session_state.dataset.columns, 
+        key="target_column_select"
+    )
 
     if target_column:
         user(f"I want to predict '{target_column}'")
@@ -71,8 +75,10 @@ elif st.session_state.step == 2:
     X = df.drop(columns=[target])
     y = df[target]
 
+    # Encode categorical variables
     X = pd.get_dummies(X)
 
+    # Determine problem type
     if y.nunique() <= 10 and y.dtype != 'float64':
         task = "classification"
         y = y.astype(str)
@@ -87,10 +93,12 @@ elif st.session_state.step == 2:
     user("Start training!")
     bot(f"Got it! This is a **{task}** problem. Training a Random Forest model...")
 
+    # Split and train
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
+    # Save for next step
     st.session_state.X_test = X_test
     st.session_state.y_test = y_test
     st.session_state.y_pred = y_pred
@@ -112,15 +120,15 @@ elif st.session_state.step == 3 and st.session_state.show_results:
     if task == "classification":
         acc = accuracy_score(y_test, y_pred)
         bot(f"📈 Model Accuracy: **{acc:.2f}**")
-        st.text("Classification Report:")
+        st.text("📋 Classification Report:")
         st.text(classification_report(y_test, y_pred))
     else:
         rmse = np.sqrt(mean_squared_error(y_test, y_pred))
         r2 = r2_score(y_test, y_pred)
         bot(f"📉 RMSE: **{rmse:.2f}**, R² Score: **{r2:.2f}**")
 
-    # Feature importance
-    bot("Here are the top important features:")
+    # Feature importance plot
+    bot("📌 Top Feature Importances:")
     importance_df = pd.DataFrame({
         'Feature': X_test.columns,
         'Importance': model.feature_importances_
@@ -130,8 +138,8 @@ elif st.session_state.step == 3 and st.session_state.show_results:
     sns.barplot(data=importance_df.head(10), x="Importance", y="Feature", ax=ax)
     st.pyplot(fig)
 
-    # Predictions preview
-    bot("🔮 Sample Predictions:")
+    # Sample predictions
+    bot("🔮 Here are some sample predictions:")
     result_df = pd.DataFrame({
         'Actual': y_test.values[:10],
         'Predicted': y_pred[:10]
@@ -139,12 +147,12 @@ elif st.session_state.step == 3 and st.session_state.show_results:
     st.dataframe(result_df)
 
     st.success("🎉 Done! Upload another file to try again.")
-    if st.button("Restart"):
-        for key in st.session_state.keys():
+    if st.button("🔁 Restart", key="restart_btn"):
+        for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
 
-# Display all messages so far
+# Display chat history in sidebar
 st.sidebar.title("📝 Conversation")
 for chat in st.session_state.chat:
-    message(chat["content"], is_user=(chat["role"] == "user"))
+    message(chat["content"], is_user=(chat["role"] == "user"), key=f"{chat['role']}_{st.session_state.chat.index(chat)}")
